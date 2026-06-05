@@ -1,0 +1,8 @@
+.env
+.secrets/
+.venv/
+.uv-cache/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+.langgraph_api/
