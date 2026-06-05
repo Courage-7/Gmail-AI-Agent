@@ -41,9 +41,9 @@ async def test_studio_fake_graph_creates_session_when_missing() -> None:
     assert result["intent"] == "search_email"
 
 
-def test_langgraph_config_points_to_studio_fake_graph() -> None:
+def test_langgraph_config_points_to_studio_real_graph() -> None:
     config = json.loads(Path("langgraph.json").read_text())
 
-    assert config["graphs"]["email_agent_fake"] == (
-        "./src/email_assistant_app/agent/studio/studio_graph_fake.py:graph"
+    assert config["graphs"]["email_agent_real"] == (
+        "./src/email_assistant_app/agent/studio/studio_graph_real.py:make_graph"
     )

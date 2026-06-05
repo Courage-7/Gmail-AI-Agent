@@ -2,7 +2,7 @@
   "$schema": "https://langgra.ph/schema.json",
   "dependencies": ["."],
   "graphs": {
-    "email_agent_fake": "./src/email_assistant_app/agent/studio/studio_graph_fake.py:graph"
+    "email_agent_real": "./src/email_assistant_app/agent/studio/studio_graph_real.py:make_graph"
   },
   "env": ".env"
 }

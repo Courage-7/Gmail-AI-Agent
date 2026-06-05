@@ -6,3 +6,5 @@
 __pycache__/
 *.py[cod]
 .langgraph_api/
+HANDOFF.md
+implementation_plan.md
