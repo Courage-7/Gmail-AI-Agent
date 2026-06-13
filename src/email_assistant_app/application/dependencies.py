@@ -8,6 +8,9 @@ from email_assistant_app.agent.llm import EmailAgentLlm
 from email_assistant_app.agent.service import EmailAgentService, InMemoryAgentStateStore
 from email_assistant_app.application.approval_service import ApprovalService
 from email_assistant_app.application.gmail_mcp_service import DockerGmailMcpToolClient, GmailMcpService
+from email_assistant_app.application.workflow_execution import WorkflowPreviewRunner
+from email_assistant_app.application.workflow_registry import WorkflowNodeRegistry
+from email_assistant_app.application.workflow_validation import WorkflowValidator
 from email_assistant_app.errors import ConfigurationError
 from email_assistant_app.integrations.mcp.gmail_docker_client import GmailDockerMcpEnvironment
 from email_assistant_app.memory.supabase_store import SupabaseMemoryStore
@@ -24,6 +27,24 @@ def _approval_service() -> ApprovalService:
 def _agent_state_store() -> InMemoryAgentStateStore:
     """Return the shared transient agent state store."""
     return InMemoryAgentStateStore()
+
+
+@lru_cache
+def _workflow_node_registry() -> WorkflowNodeRegistry:
+    """Return the shared workflow builder node registry."""
+    return WorkflowNodeRegistry()
+
+
+@lru_cache
+def _workflow_validator() -> WorkflowValidator:
+    """Return the shared workflow builder validator."""
+    return WorkflowValidator(_workflow_node_registry())
+
+
+@lru_cache
+def _workflow_preview_runner() -> WorkflowPreviewRunner:
+    """Return the shared workflow preview runner."""
+    return WorkflowPreviewRunner(_workflow_validator())
 
 
 def _supabase_memory_store(settings: Settings) -> SupabaseMemoryStore:
@@ -97,6 +118,21 @@ async def get_app_settings() -> Settings:
 async def get_approval_service() -> ApprovalService:
     """Return the shared approval service."""
     return _approval_service()
+
+
+async def get_workflow_node_registry() -> WorkflowNodeRegistry:
+    """Return the workflow builder node registry."""
+    return _workflow_node_registry()
+
+
+async def get_workflow_validator() -> WorkflowValidator:
+    """Return the workflow builder validator."""
+    return _workflow_validator()
+
+
+async def get_workflow_preview_runner() -> WorkflowPreviewRunner:
+    """Return the workflow preview runner."""
+    return _workflow_preview_runner()
 
 
 async def get_gmail_mcp_service() -> GmailMcpService:

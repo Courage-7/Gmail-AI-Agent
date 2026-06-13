@@ -8,3 +8,5 @@ __pycache__/
 .langgraph_api/
 HANDOFF.md
 implementation_plan.md
+frontend/node_modules/
+frontend/dist/
