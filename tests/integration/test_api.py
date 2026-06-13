@@ -109,6 +109,9 @@ async def test_capabilities_endpoint(test_client) -> None:
         "docker_gmail_mcp_list_messages",
         "docker_gmail_mcp_find_message",
         "approved_docker_gmail_mcp_send_message",
+        "workflow_builder_node_registry",
+        "workflow_builder_validation",
+        "workflow_builder_preview_run",
     ]
     assert body["configuration"]["agent_configured"] is False
     assert body["configuration"]["llm_provider"] == "groq"
@@ -164,6 +167,102 @@ async def test_send_message_requires_approval_then_sends(test_client) -> None:
     assert gmail_service.sent_payloads == [payload]
 
 
+async def test_workflow_node_types_endpoint(test_client) -> None:
+    client, _ = test_client
+
+    response = await client.get("/workflow-node-types")
+
+    assert response.status_code == 200
+    body = response.json()
+    node_types = {item["type"]: item for item in body}
+    assert set(node_types) == {
+        "input.manual",
+        "llm.chat",
+        "gmail.search_messages",
+        "condition.contains",
+        "output.final",
+    }
+    assert node_types["gmail.search_messages"]["category"] == "mcp_tool"
+    assert node_types["gmail.search_messages"]["configSchema"][0]["name"] == "query"
+    assert node_types["llm.chat"]["defaultConfig"]["userPrompt"] == "{{input.manual.request}}"
+
+
+async def test_workflow_validate_accepts_starter_graph(test_client) -> None:
+    client, _ = test_client
+
+    response = await client.post("/workflows/validate", json=_starter_workflow())
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body == {"valid": True, "errors": [], "warnings": []}
+
+
+async def test_workflow_validate_rejects_unsupported_node_type(test_client) -> None:
+    client, _ = test_client
+    workflow = _starter_workflow()
+    workflow["nodes"][1]["data"]["nodeType"] = "browser.exec"
+
+    response = await client.post("/workflows/validate", json=workflow)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["valid"] is False
+    assert body["errors"][0]["code"] == "unsupported_node_type"
+    assert body["errors"][0]["node_id"] == "starter-llm"
+
+
+async def test_workflow_validate_rejects_cycles_and_frontend_secrets(test_client) -> None:
+    client, _ = test_client
+    workflow = _starter_workflow()
+    workflow["nodes"][1]["data"]["config"]["apiKey"] = "not-allowed"
+    workflow["edges"].append(
+        {
+            "id": "starter-output-starter-llm",
+            "source": "starter-output",
+            "target": "starter-llm",
+        }
+    )
+
+    response = await client.post("/workflows/validate", json=workflow)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["valid"] is False
+    codes = {error["code"] for error in body["errors"]}
+    assert "frontend_secret_config_not_allowed" in codes
+    assert "output_node_has_outgoing_edge" in codes
+    assert "workflow_cycle_detected" in codes
+
+
+async def test_workflow_run_returns_preview_steps(test_client) -> None:
+    client, _ = test_client
+
+    response = await client.post("/workflows/run", json=_starter_workflow())
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "completed"
+    assert body["valid"] is True
+    assert [step["node_type"] for step in body["steps"]] == ["input.manual", "llm.chat", "output.final"]
+    assert body["steps"][1]["summary"] == "Generated preview LLM response"
+    assert body["result"]["result"]["text"].startswith("Preview response for:")
+
+
+async def test_workflow_run_returns_validation_errors(test_client) -> None:
+    client, _ = test_client
+    workflow = _starter_workflow()
+    workflow["nodes"][1]["data"]["config"]["userPrompt"] = ""
+
+    response = await client.post("/workflows/run", json=workflow)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "blocked"
+    assert body["valid"] is False
+    assert body["steps"] == []
+    assert body["validation"]["errors"][0]["code"] == "missing_required_config"
+
+
 @pytest.mark.parametrize(
     ("method", "path"),
     [
@@ -183,3 +282,61 @@ async def test_unsupported_routes_are_removed(test_client, method: str, path: st
     response = await client.request(method, path, json={})
 
     assert response.status_code == 404
+
+
+def _starter_workflow() -> dict:
+    return {
+        "id": "starter",
+        "name": "Starter workflow",
+        "version": 1,
+        "nodes": [
+            {
+                "id": "starter-input",
+                "type": "workflowNode",
+                "position": {"x": 80, "y": 120},
+                "data": {
+                    "label": "Manual Input",
+                    "nodeType": "input.manual",
+                    "config": {
+                        "inputName": "request",
+                        "sampleValue": "Summarize my latest important email.",
+                    },
+                },
+            },
+            {
+                "id": "starter-llm",
+                "type": "workflowNode",
+                "position": {"x": 360, "y": 120},
+                "data": {
+                    "label": "LLM Chat",
+                    "nodeType": "llm.chat",
+                    "config": {
+                        "systemPrompt": "You are a careful email workflow assistant.",
+                        "userPrompt": "{{input.manual.request}}",
+                    },
+                },
+            },
+            {
+                "id": "starter-output",
+                "type": "workflowNode",
+                "position": {"x": 660, "y": 120},
+                "data": {
+                    "label": "Final Output",
+                    "nodeType": "output.final",
+                    "config": {"outputName": "result"},
+                },
+            },
+        ],
+        "edges": [
+            {
+                "id": "starter-input-starter-llm",
+                "source": "starter-input",
+                "target": "starter-llm",
+            },
+            {
+                "id": "starter-llm-starter-output",
+                "source": "starter-llm",
+                "target": "starter-output",
+            },
+        ],
+    }

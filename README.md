@@ -113,6 +113,7 @@ sequenceDiagram
 | LLM provider | Groq OpenAI-compatible API |
 | Gmail integration | Docker Gmail MCP server, IMAP, SMTP |
 | Memory and audit storage | Supabase Postgres |
+| Workflow builder UI | Vite, React, React Flow |
 | Settings | pydantic-settings, `.env` |
 | Package management | uv |
 | Tests | pytest, httpx |
@@ -135,6 +136,8 @@ tests/
   integration/
   unit/
   test_gmail_docker_mcp_tools.py
+frontend/
+  src/                 Local-only React Flow workflow builder shell
 ```
 
 ## Prerequisites
@@ -142,6 +145,7 @@ tests/
 - Python 3.11 or newer.
 - `uv` installed locally.
 - Docker running locally.
+- Node.js and npm for the optional workflow builder frontend.
 - A Gmail account with IMAP enabled.
 - A Gmail App Password. The normal Gmail password will not work.
 - A Groq API key.
@@ -214,12 +218,33 @@ Or run with Docker Compose:
 docker compose up --build
 ```
 
+Run the local workflow builder frontend:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open the Vite URL shown in the terminal. The workflow builder uses React Flow and `localStorage`, fetches approved node types from FastAPI when the backend is running, and can validate drafts through `POST /workflows/validate`. It does not execute workflows or expose Gmail MCP/internal tools from the browser.
+
+Build the frontend:
+
+```bash
+cd frontend
+npm run build
+```
+
+The Vite dev server proxies `/workflow-node-types` and `/workflows/*` to `http://127.0.0.1:8000`. Set `VITE_API_BASE_URL` if the FastAPI backend is served from a different origin. The backend does not save or execute workflows yet.
+
 ## API Reference
 
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/health` | Service health and environment |
 | `GET` | `/capabilities` | Runtime feature and configuration status |
+| `GET` | `/workflow-node-types` | List approved visual workflow builder node types |
+| `POST` | `/workflows/validate` | Validate workflow JSON without saving or executing it |
 | `POST` | `/agent/sessions` | Create a persisted agent conversation session |
 | `GET` | `/agent/sessions` | List recent sessions for a user |
 | `POST` | `/agent/chat` | Send one message through the email agent |

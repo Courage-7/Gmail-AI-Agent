@@ -32,6 +32,9 @@ async def capabilities(settings: Settings = Depends(get_app_settings)) -> dict:
             "docker_gmail_mcp_list_messages",
             "docker_gmail_mcp_find_message",
             "approved_docker_gmail_mcp_send_message",
+            "workflow_builder_node_registry",
+            "workflow_builder_validation",
+            "workflow_builder_preview_run",
         ],
         "configuration": {
             "agent_configured": agent_configured,
